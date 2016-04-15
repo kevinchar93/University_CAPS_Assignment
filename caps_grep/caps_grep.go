@@ -6,8 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
-	//"os"
 )
 
 func check(e error) {
@@ -28,15 +28,21 @@ func main() {
 	var fullCount int64
 	var fileCountMap string
 
-	if typeFlag == "file" {
+	if len(flag.Args()) == 0 {
 
-		searchFiles(&fullResult, &fileCountMap, &fullCount)
+		fmt.Print("no arguments given to search\n")
+		return
+
+	} else if typeFlag == "file" {
+
+		searchFilesSeq(&fullResult, &fileCountMap, &fullCount)
 
 	} else if typeFlag == "folder" {
-		// go thorugh the folder recursively and get a list of file names
-		// search each of the file names once we have them
-		fmt.Print("search the given folder for search term")
+
+		searchFolders(&fullResult, &fileCountMap, &fullCount)
+
 	} else {
+
 		fmt.Print("error incorret type argment given")
 	}
 
@@ -54,7 +60,7 @@ func main() {
 	}
 }
 
-func searchFiles(fullResult, fileCountMap *string, fullCount *int64) {
+func searchFilesSeq(fullResult, fileCountMap *string, fullCount *int64) {
 
 	var resultsBuffer bytes.Buffer
 	var totalOccurrences int64
@@ -90,8 +96,54 @@ func searchFiles(fullResult, fileCountMap *string, fullCount *int64) {
 	*fullCount = totalOccurrences
 }
 
-func searchFolders(fullResult, fileCountMap *string, fullCount *int64) {
+func searchFoldersSeq(fullResult, fileCountMap *string, fullCount *int64) {
 
+	fileList := []string{}
+
+	var resultsBuffer bytes.Buffer
+	var totalOccurrences int64
+	var fileReportBuffer bytes.Buffer
+
+	// build up the list of files that we are going to search
+	for _, directoryArg := range flag.Args() {
+		// walk through each directory and get the names of files
+		err := filepath.Walk(directoryArg, func(path string, fileInfo os.FileInfo, err error) error {
+			// check that we are only listing directories and .txt files in our list
+			if false == fileInfo.IsDir() {
+				fileList = append(fileList, path)
+			}
+			return nil
+		})
+		check(err)
+	}
+
+	// go through the file list and search each file
+	for _, originFileName := range fileList {
+		// read the file into a byte buffer
+		fileData, err := ioutil.ReadFile(originFileName)
+		if err == nil {
+			// if name was qualified chop it down to the base / showten if need be
+			fileName := filepath.Base(originFileName)
+			if len(fileName) > 25 {
+				fileName = fileName[:25] + "..."
+			}
+
+			// search the file for the target string
+			fmt.Print(fmt.Sprintf("Searching file: %s \n", fileName))
+			output, numFound := searchBytes(searchStrFlag, fileData, fileName)
+
+			// update variables storing information
+			totalOccurrences += numFound
+			resultsBuffer.WriteString(output)
+			fileReportBuffer.WriteString(fmt.Sprintf("%s : %d occurrences\n", fileName, numFound))
+		} else {
+			check(err)
+		}
+	}
+
+	*fullResult = resultsBuffer.String()
+	*fileCountMap = fileReportBuffer.String()
+	*fullCount = totalOccurrences
 }
 
 func initFlags() {
@@ -99,12 +151,12 @@ func initFlags() {
 	// setup the type flag
 	flag.StringVar(&typeFlag, "type", "file", `specify if either file names or folders names will be provided to search`)
 	flag.StringVar(&searchStrFlag, "str", "null", `the string to search for`)
-	flag.BoolVar(&verboseFlag, "verbose", true, `if flase only shows the number of occurrences, if true shows locations too`)
+	flag.BoolVar(&verboseFlag, "verbose", false, `if flase only shows the number of occurrences, if true shows locations too`)
 
 	flag.Parse()
 }
 
-// search the data in
+// search the for the targetStr in the given byte array "data"
 func searchBytes(targetStr string, data []byte, fileName string) (string, int64) {
 
 	var outputBuffer bytes.Buffer
