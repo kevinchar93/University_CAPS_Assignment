@@ -90,7 +90,7 @@ func main() {
 }
 
 func initFlags() {
-	flag.StringVar(&breakdownFlag, "breakdown", "pixel", "operate on the image pixel by pixel or line by line")
+	flag.StringVar(&filter, "breakdown", "pixel", "operate on the image pixel by pixel or line by line")
 	flag.StringVar(&methodFlag, "method", "seq", "modify the image using either sequential or parrallel method")
 	flag.BoolVar(&progressFlag, "progress", false, "shows the progress of the algorithm or not (T/F)")
 	flag.IntVar(&cpuCountFlag, "cpus", -1, "how many cpus to use")

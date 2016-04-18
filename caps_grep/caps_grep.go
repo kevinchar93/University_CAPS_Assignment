@@ -56,7 +56,7 @@ func main() {
 	} else if typeFlag == "folder" {
 
 		if methodFLag == "para" {
-			searchFolders(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
+			searchFoldersPara(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
 		} else if methodFLag == "seq" {
 			searchFoldersSeq(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
 		}
@@ -198,7 +198,7 @@ func charCountCollector(charCount *int64, charCountChan <-chan int64, items int6
 }
 
 // search the folders provided in the arguments to the program - search is done in parallel
-func searchFolders(verboseOutput, fileCountMap *string, fileCount, charCount, fullCount *int64) {
+func searchFoldersPara(verboseOutput, fileCountMap *string, fileCount, charCount, fullCount *int64) {
 
 	fileList := []string{}
 
