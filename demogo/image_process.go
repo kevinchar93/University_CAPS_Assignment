@@ -75,6 +75,7 @@ func main() {
 	}
 
 	// get operation metrics
+	fmt.Print("") // needed of else timing does not work, don't know cause
 	elaspedTimeSeq := time.Since(startTimeSeq)
 	elaspedInSecondsSeq := elaspedTimeSeq.Seconds()
 	pixelsPerSecondSeq := float64(imagePixelCount) / elaspedInSecondsSeq
@@ -98,11 +99,20 @@ func main() {
 
 	// iterate through each pixel stored in the NRGBA struct
 	for rowY := beginY; rowY < outHeight; rowY++ {
-		go parallelApplyKernel(rowY, beginX, outWidth, srcImgNRGB, outImagePara, selectedFilter, &wg)
+		//go parallelApplyKernel(rowY, beginX, outWidth, srcImgNRGB, outImagePara, selectedFilter, &wg)
+		go func(row, begin, end int, src *image.NRGBA, dest *image.NRGBA, kernel []float64, wg *sync.WaitGroup) {
+			wg.Add(1)
+			defer wg.Done()
+
+			for pixel := begin; pixel < end; pixel++ {
+				applyKernelPixel(pixel, row, src, dest, kernel)
+			}
+		}(rowY, beginX, outWidth, srcImgNRGB, outImagePara, selectedFilter, &wg)
 	}
 	wg.Wait()
 
 	// get operation metrics
+	fmt.Print("") // needed of else timing does not work, don't know cause
 	elaspedTimePara := time.Since(startTimePara)
 	elaspedInSecondsPara := elaspedTimePara.Seconds()
 	pixelsPerSecondPara := float64(imagePixelCount) / elaspedInSecondsPara
@@ -128,6 +138,38 @@ func main() {
 	fmt.Print("---------------------\n")
 	fmt.Print(fmt.Sprintf("Time elapsed: %s\n", elaspedTimePara))
 	fmt.Print(fmt.Sprintf("Pixels per second: %.5f\n", pixelsPerSecondPara))
+	fmt.Print("\n-----------------------------------------------\n")
+
+	// speed calculations
+	paraFaster := false
+	if pixelsPerSecondSeq < pixelsPerSecondPara {
+		paraFaster = true
+	}
+
+	var throughputString string
+	var executionString string
+	if paraFaster {
+		throughputIncrease := ((pixelsPerSecondPara - pixelsPerSecondSeq) / pixelsPerSecondSeq) * 100
+		executionPercentage := (elaspedInSecondsPara / elaspedInSecondsSeq) * 100
+		throughputString = fmt.Sprintf("Parallel algorithm throughput %.5f percent more\n", throughputIncrease)
+		executionString = fmt.Sprintf("Parallel agorithm execution time is %.5f percent of sequential execution time\n", executionPercentage)
+	} else {
+		throughputIncrease := ((pixelsPerSecondSeq - pixelsPerSecondPara) / pixelsPerSecondPara) * 100
+		executionPercentage := (elaspedInSecondsSeq / elaspedInSecondsPara) * 100
+		throughputString = fmt.Sprintf("Sequential algorithm throughput %.5f percent more\n", throughputIncrease)
+		executionString = fmt.Sprintf("Sequential algorithm execution time is %.5f percent of parallel execution time\n", executionPercentage)
+	}
+
+	fmt.Print(throughputString)
+	fmt.Print(executionString)
+}
+
+func demoParaImageProcess(numCpus int, fileName string) {
+	runtime.GOMAXPROCS(numCpus)
+}
+
+func demoSeqImageProcess(numCpus int, fileName string) {
+
 }
 
 func parallelApplyKernel(row, begin, end int, src *image.NRGBA, dest *image.NRGBA, kernel []float64, wg *sync.WaitGroup) {
