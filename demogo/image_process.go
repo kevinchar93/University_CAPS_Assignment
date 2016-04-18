@@ -42,6 +42,7 @@ func main() {
 	} else {
 		cpuCount = cpuCountFlag
 	}
+	fmt.Print(fmt.Sprintf("Using %d cpus\n", cpuCount))
 	runtime.GOMAXPROCS(cpuCount)
 
 	// open the image
@@ -65,6 +66,7 @@ func main() {
 	outImagePara := image.NewNRGBA(image.Rect(0, 0, outWidth, outHeight))
 
 	// sequential operation ----------------------------------------------------
+	fmt.Print("\nBegin sequential\n")
 	startTimeSeq := time.Now()
 
 	// iterate through each pixel stored in the NRGBA struct
@@ -75,8 +77,8 @@ func main() {
 	}
 
 	// get operation metrics
-	fmt.Print("") // needed of else timing does not work, don't know cause
 	elaspedTimeSeq := time.Since(startTimeSeq)
+	fmt.Print("End sequential\n")
 	elaspedInSecondsSeq := elaspedTimeSeq.Seconds()
 	pixelsPerSecondSeq := float64(imagePixelCount) / elaspedInSecondsSeq
 
@@ -92,18 +94,15 @@ func main() {
 	// parallel operation ------------------------------------------------------
 	outImage = image.NewNRGBA(image.Rect(0, 0, outWidth, outHeight))
 	var wg sync.WaitGroup // wait group to syncronise routines
-	startTimePara := time.Now()
 
-	// make a semaphore channel
-	//runningProcesses := make(semaphore, 1)
+	fmt.Print("Begin parallel\n")
+	startTimePara := time.Now()
 
 	// iterate through each pixel stored in the NRGBA struct
 	for rowY := beginY; rowY < outHeight; rowY++ {
-		//go parallelApplyKernel(rowY, beginX, outWidth, srcImgNRGB, outImagePara, selectedFilter, &wg)
+		wg.Add(1)
 		go func(row, begin, end int, src *image.NRGBA, dest *image.NRGBA, kernel []float64, wg *sync.WaitGroup) {
-			wg.Add(1)
 			defer wg.Done()
-
 			for pixel := begin; pixel < end; pixel++ {
 				applyKernelPixel(pixel, row, src, dest, kernel)
 			}
@@ -112,8 +111,9 @@ func main() {
 	wg.Wait()
 
 	// get operation metrics
-	fmt.Print("") // needed of else timing does not work, don't know cause
+	//fmt.Print("") // needed of else timing does not work, don't know cause
 	elaspedTimePara := time.Since(startTimePara)
+	fmt.Print("End parallel\n")
 	elaspedInSecondsPara := elaspedTimePara.Seconds()
 	pixelsPerSecondPara := float64(imagePixelCount) / elaspedInSecondsPara
 

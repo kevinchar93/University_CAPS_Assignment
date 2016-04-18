@@ -28,173 +28,118 @@ var verboseFlag bool
 var methodFLag string
 var progressFlag bool
 var fileMapFlag bool
+
 var cpuCount int
+var fileName string
+var cpuCountFlag int
 
 func main() {
 
 	initFlags()
 
-	var verboseOutput string
-	var fullCount int64
-	var charCount int64
-	var fileCount int64
-	var fileCountMap string
-
-	cpuCount = runtime.NumCPU()
+	// get the ammount of CPU's to use
+	if cpuCountFlag == 0 {
+		cpuCount = 1
+	} else if cpuCountFlag > runtime.NumCPU() || cpuCountFlag == -1 {
+		cpuCount = runtime.NumCPU()
+	} else {
+		cpuCount = cpuCountFlag
+	}
+	fmt.Print(fmt.Sprintf("Using %d cpus\n", cpuCount))
 	runtime.GOMAXPROCS(cpuCount)
-
-	// begin the execution timer
-	startTime := time.Now()
 
 	if len(flag.Args()) == 0 {
 
 		fmt.Print("no arguments given to search\n")
 		return
-	} else if typeFlag == "file" {
-
-		searchFiles(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
-	} else if typeFlag == "folder" {
-
-		if methodFLag == "para" {
-			searchFoldersPara(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
-		} else if methodFLag == "seq" {
-			searchFoldersSeq(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
-		}
-	} else {
-
-		fmt.Print("error incorret type argment given")
-		return
 	}
 
-	elasped := time.Since(startTime)
-	elaspedInSeconds := elasped.Seconds()
-	charsPerSecond := float64(charCount) / elaspedInSeconds
-	filesPerSecond := float64(fileCount) / elaspedInSeconds
+	// sequential operation ----------------------------------------------------
+	var verboseOutputSeq string
+	var fullCountSeq int64
+	var charCountSeq int64
+	var fileCountSeq int64
+	var fileCountMapSeq string
 
-	// print results
-	fmt.Print("\nSearch complete\n")
-	fmt.Print("-----------------------------------------------\n")
+	fmt.Print("\nBegin sequential\n")
+	startTimeSeq := time.Now()
+	searchFoldersSeq(&verboseOutputSeq, &fileCountMapSeq, &fileCountSeq, &charCountSeq, &fullCountSeq)
+	elaspedSeq := time.Since(startTimeSeq)
+	fmt.Print("End sequential\n")
+	elaspedInSecondsSeq := elaspedSeq.Seconds()
+	charsPerSecondSeq := float64(charCountSeq) / elaspedInSecondsSeq
+	filesPerSecondSeq := float64(fileCountSeq) / elaspedInSecondsSeq
 
-	if verboseFlag {
-		fmt.Print(verboseOutput)
-	}
+	//--------------------------------------------------------------------------
 
-	if fileMapFlag {
-		fmt.Print(fileCountMap)
-	}
+	// parallel operation ------------------------------------------------------
+	var verboseOutputPara string
+	var fullCountPara int64
+	var charCountPara int64
+	var fileCountPara int64
+	var fileCountMapPara string
 
+	fmt.Print("Begin parallel\n")
+	startTimePara := time.Now()
+	searchFoldersPara(&verboseOutputPara, &fileCountMapPara, &fileCountPara, &charCountPara, &fullCountPara)
+	elaspedPara := time.Since(startTimePara)
+	fmt.Print("End parallel\n")
+	elaspedInSecondsPara := elaspedPara.Seconds()
+	charsPerSecondPara := float64(charCountPara) / elaspedInSecondsPara
+	filesPerSecondPara := float64(fileCountPara) / elaspedInSecondsPara
+	//--------------------------------------------------------------------------
+
+	// operation report --------------------------------------------------------
 	fmt.Print("\nSummary\n")
 	fmt.Print("-----------------------------------------------\n")
-	fmt.Print(fmt.Sprintf("Search string: \"%s\" Total occurrences: %d \n", searchStrFlag, fullCount))
-	fmt.Print(fmt.Sprintf("Time elasped: %s \n", elasped))
-	fmt.Print(fmt.Sprintf("Characters scanned: %d \n", charCount))
-	fmt.Print(fmt.Sprintf("Characters per second: %.5f \n", charsPerSecond))
-	fmt.Print(fmt.Sprintf("Files scanned: %d \n", fileCount))
-	fmt.Print(fmt.Sprintf("Files per second: %.5f \n", filesPerSecond))
-}
+	fmt.Print(fmt.Sprintf("CPUs : %d", cpuCount))
+	fmt.Print("\nSequential operation\n")
+	fmt.Print("---------------------\n")
+	fmt.Print(fmt.Sprintf("Search string: \"%s\" Total occurrences: %d \n", searchStrFlag, fullCountSeq))
+	fmt.Print(fmt.Sprintf("Characters scanned: %d \n", charCountSeq))
+	fmt.Print(fmt.Sprintf("Files scanned: %d \n", fileCountSeq))
+	fmt.Print(fmt.Sprintf("Time elasped: %s \n", elaspedSeq))
+	fmt.Print(fmt.Sprintf("Characters per second: %.5f \n", charsPerSecondSeq))
+	fmt.Print(fmt.Sprintf("Files per second: %.5f \n", filesPerSecondSeq))
+	fmt.Print("\nParallel operation\n")
+	fmt.Print("---------------------\n")
+	fmt.Print(fmt.Sprintf("Search string: \"%s\" Total occurrences: %d \n", searchStrFlag, fullCountPara))
+	fmt.Print(fmt.Sprintf("Characters scanned: %d \n", charCountPara))
+	fmt.Print(fmt.Sprintf("Files scanned: %d \n", fileCountPara))
+	fmt.Print(fmt.Sprintf("Time elasped: %s \n", elaspedPara))
+	fmt.Print(fmt.Sprintf("Characters per second: %.5f \n", charsPerSecondPara))
+	fmt.Print(fmt.Sprintf("Files per second: %.5f \n", filesPerSecondPara))
+	fmt.Print("\n-----------------------------------------------\n")
 
-// routines that "makes" jobs (filenames) and puts them in a channel for workes to receive
-func jobMaker(fileJobsChan chan<- string, fileList []string, wg *sync.WaitGroup) {
-	wg.Add(1)
-	defer wg.Done()
-
-	for _, fileName := range fileList {
-		fileJobsChan <- fileName
+	// speed calculations
+	paraFaster := false
+	if elaspedInSecondsPara < elaspedInSecondsSeq {
+		paraFaster = true
 	}
-	close(fileJobsChan)
-}
 
-// routine that performs the actual searching task
-func worker(targetStr string, fileJob <-chan string, resultsVerboseChan, resultsFileCountMapChan chan<- string,
-	charCountChan, totalCountChan chan<- int64, wg *sync.WaitGroup, id int, openedFilesSem semaphore) {
+	var fileThroughputString string
+	var charThroughputString string
+	var executionString string
 
-	wg.Add(1)
-	defer wg.Done()
-
-	originFileName := <-fileJob
-
-	// acquire resource for opening files
-	sem := empty{}
-	openedFilesSem <- sem
-
-	// open and read from file
-	fileData, err := ioutil.ReadFile(originFileName)
-
-	if err == nil {
-		// if name was qualified chop it down to the base / showten if need be
-		fileName := filepath.Base(originFileName)
-		if len(fileName) > 25 {
-			fileName = fileName[:25] + "..."
-		}
-
-		// search the given file for the target string then put results into channels
-		if true == progressFlag {
-			fmt.Print(fmt.Sprintf("Searching file: %s \n", fileName))
-		}
-		output, numFound, numChars := searchBytes(targetStr, fileData, fileName)
-		totalCountChan <- numFound
-		charCountChan <- numChars
-		resultsVerboseChan <- output
-		resultsFileCountMapChan <- fmt.Sprintf("%s : %d occurrences\n", fileName, numFound)
+	if paraFaster {
+		fileThroughputIncrease := ((filesPerSecondPara - filesPerSecondSeq) / filesPerSecondSeq) * 100
+		charThroughputIncrease := ((charsPerSecondPara - charsPerSecondSeq) / charsPerSecondSeq) * 100
+		executionPercentage := (elaspedInSecondsPara / elaspedInSecondsSeq) * 100
+		fileThroughputString = fmt.Sprintf("Parallel algorithm file throughput %.5f percent more\n", fileThroughputIncrease)
+		charThroughputString = fmt.Sprintf("Parallel algorithm character throughput %.5f percent more\n", charThroughputIncrease)
+		executionString = fmt.Sprintf("Parallel agorithm execution time is %.5f percent of sequential execution time\n", executionPercentage)
 	} else {
-		//check(err)
-		fmt.Print(err.Error() + "\n")
+		fileThroughputIncrease := ((filesPerSecondSeq - filesPerSecondPara) / filesPerSecondPara) * 100
+		charThroughputIncrease := ((charsPerSecondSeq - charsPerSecondPara) / charsPerSecondPara) * 100
+		executionPercentage := (elaspedInSecondsSeq / elaspedInSecondsPara) * 100
+		fileThroughputString = fmt.Sprintf("Sequential algorithm file throughput %.5f percent more\n", fileThroughputIncrease)
+		charThroughputString = fmt.Sprintf("Sequential algorithm character throughput %.5f percent more\n", charThroughputIncrease)
+		executionString = fmt.Sprintf("Sequential agorithm execution time is %.5f percent of parallel execution time\n", executionPercentage)
 	}
 
-	// release resource for opening files
-	<-openedFilesSem
-}
-
-// routine to collect the number of matches from occurrenceCountChan and put it into fullCount
-func occurrenceCountCollector(fullCount *int64, occurrenceCountChan <-chan int64, items int64, wg *sync.WaitGroup) {
-	wg.Add(1)
-	defer wg.Done()
-	var sumOccurences int64
-
-	for i := int64(0); i < items; i++ {
-		sumOccurences += <-occurrenceCountChan
-	}
-
-	*fullCount = sumOccurences
-}
-
-// routine to collect the verbose output from the verboseOutputChan and put it into the string verboseOutput
-func verboseOutputCollector(verboseOutput *string, verboseOutputChan <-chan string, items int64, wg *sync.WaitGroup) {
-	wg.Add(1)
-	defer wg.Done()
-	var verboseOutputBuffer bytes.Buffer
-
-	for i := int64(0); i < items; i++ {
-		verboseOutputBuffer.WriteString(<-verboseOutputChan)
-	}
-
-	*verboseOutput = verboseOutputBuffer.String()
-}
-
-// routine to collect the file names with thier occurrence counts from fileCountMapChan and put it into fileCountMap
-func fileCountMapCollector(fileCountMap *string, fileCountMapChan <-chan string, items int64, wg *sync.WaitGroup) {
-	wg.Add(1)
-	defer wg.Done()
-	var fileCountMapBuffer bytes.Buffer
-
-	for i := int64(0); i < items; i++ {
-		fileCountMapBuffer.WriteString(<-fileCountMapChan)
-	}
-
-	*fileCountMap = fileCountMapBuffer.String()
-}
-
-// routine to collect the number of characters from charCountChan and put it into charCount
-func charCountCollector(charCount *int64, charCountChan <-chan int64, items int64, wg *sync.WaitGroup) {
-	wg.Add(1)
-	defer wg.Done()
-	var sumChars int64
-
-	for i := int64(0); i < items; i++ {
-		sumChars += <-charCountChan
-	}
-
-	*charCount = sumChars
+	fmt.Print(fileThroughputString)
+	fmt.Print(charThroughputString)
+	fmt.Print(executionString)
 }
 
 // search the folders provided in the arguments to the program - search is done in parallel
@@ -228,13 +173,16 @@ func searchFoldersPara(verboseOutput, fileCountMap *string, fileCount, charCount
 
 	// kick off all the workers who wait to be given jobs
 	for i := range fileList {
+		wg.Add(1)
 		go worker(searchStrFlag, fileJobsChan, verboseOutputChan, fileCountMapChan, charCountChan, occurrenceCountChan, &wg, i, openedFiles)
 	}
 
-	// create all the jobs
+	// create all the job
+	wg.Add(1)
 	go jobMaker(fileJobsChan, fileList, &wg)
 
 	// collect the results
+	wg.Add(4)
 	go occurrenceCountCollector(fullCount, occurrenceCountChan, fileListLen, &wg)
 	go fileCountMapCollector(fileCountMap, fileCountMapChan, fileListLen, &wg)
 	go verboseOutputCollector(verboseOutput, verboseOutputChan, fileListLen, &wg)
@@ -246,47 +194,6 @@ func searchFoldersPara(verboseOutput, fileCountMap *string, fileCount, charCount
 	close(fileCountMapChan)
 	close(occurrenceCountChan)
 	close(charCountChan)
-}
-
-// search the files provided in the arguments to the program - search is done sequentially
-func searchFiles(verboseOutput, fileCountMap *string, fileCount, charCount, fullCount *int64) {
-
-	var resultsBuffer bytes.Buffer
-	var totalOccurrences int64
-	var totalChars int64
-	var fileReportBuffer bytes.Buffer
-
-	// do this for each of the supplied arguments
-	for i, originFileName := range flag.Args() {
-
-		// read the file into a byte buffer
-		fileData, err := ioutil.ReadFile(originFileName)
-		if err == nil {
-			// if name was qualified chop it down to the base / showten if need be
-			fileName := filepath.Base(originFileName)
-			if len(fileName) > 25 {
-				fileName = fileName[:25] + "..."
-			}
-
-			// search the file for the target string
-			fmt.Print(fmt.Sprintf("Searching file: %s \n", fileName))
-			output, numFound, numChars := searchBytes(searchStrFlag, fileData, fileName)
-
-			// update variables storing information
-			totalOccurrences += numFound
-			totalChars += numChars
-			resultsBuffer.WriteString(output)
-			fileReportBuffer.WriteString(fmt.Sprintf("%s : %d occurrences\n", fileName, numFound))
-		} else {
-			check(err)
-		}
-		*fileCount = int64(i)
-	}
-
-	*verboseOutput = resultsBuffer.String()
-	*fileCountMap = fileReportBuffer.String()
-	*fullCount = totalOccurrences
-	*charCount = totalChars
 }
 
 // search the folders provided in the arguments to the program - search is done sequentially
@@ -346,6 +253,103 @@ func searchFoldersSeq(fullResult, fileCountMap *string, fileCount, charCount, fu
 	*charCount = totalChars
 }
 
+// routines that "makes" jobs (filenames) and puts them in a channel for workes to receive
+func jobMaker(fileJobsChan chan<- string, fileList []string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for _, fileName := range fileList {
+		fileJobsChan <- fileName
+	}
+}
+
+// routine that performs the actual searching task
+func worker(targetStr string, fileJob <-chan string, resultsVerboseChan, resultsFileCountMapChan chan<- string,
+	charCountChan, totalCountChan chan<- int64, wg *sync.WaitGroup, id int, openedFilesSem semaphore) {
+
+	defer wg.Done()
+
+	originFileName := <-fileJob
+
+	// acquire resource for opening files
+	sem := empty{}
+	openedFilesSem <- sem
+
+	// open and read from file
+	fileData, err := ioutil.ReadFile(originFileName)
+
+	if err == nil {
+		// if name was qualified chop it down to the base / showten if need be
+		fileName := filepath.Base(originFileName)
+		if len(fileName) > 25 {
+			fileName = fileName[:25] + "..."
+		}
+
+		// search the given file for the target string then put results into channels
+		if true == progressFlag {
+			fmt.Print(fmt.Sprintf("Searching file: %s \n", fileName))
+		}
+		output, numFound, numChars := searchBytes(targetStr, fileData, fileName)
+		totalCountChan <- numFound
+		charCountChan <- numChars
+		resultsVerboseChan <- output
+		resultsFileCountMapChan <- fmt.Sprintf("%s : %d occurrences\n", fileName, numFound)
+	} else {
+		//check(err)
+		fmt.Print(err.Error() + "\n")
+	}
+
+	// release resource for opening files
+	<-openedFilesSem
+}
+
+// routine to collect the number of matches from occurrenceCountChan and put it into fullCount
+func occurrenceCountCollector(fullCount *int64, occurrenceCountChan <-chan int64, items int64, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var sumOccurences int64
+
+	for i := int64(0); i < items; i++ {
+		sumOccurences += <-occurrenceCountChan
+	}
+
+	*fullCount = sumOccurences
+}
+
+// routine to collect the verbose output from the verboseOutputChan and put it into the string verboseOutput
+func verboseOutputCollector(verboseOutput *string, verboseOutputChan <-chan string, items int64, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var verboseOutputBuffer bytes.Buffer
+
+	for i := int64(0); i < items; i++ {
+		verboseOutputBuffer.WriteString(<-verboseOutputChan)
+	}
+
+	*verboseOutput = verboseOutputBuffer.String()
+}
+
+// routine to collect the file names with thier occurrence counts from fileCountMapChan and put it into fileCountMap
+func fileCountMapCollector(fileCountMap *string, fileCountMapChan <-chan string, items int64, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var fileCountMapBuffer bytes.Buffer
+
+	for i := int64(0); i < items; i++ {
+		fileCountMapBuffer.WriteString(<-fileCountMapChan)
+	}
+
+	*fileCountMap = fileCountMapBuffer.String()
+}
+
+// routine to collect the number of characters from charCountChan and put it into charCount
+func charCountCollector(charCount *int64, charCountChan <-chan int64, items int64, wg *sync.WaitGroup) {
+	defer wg.Done()
+	var sumChars int64
+
+	for i := int64(0); i < items; i++ {
+		sumChars += <-charCountChan
+	}
+
+	*charCount = sumChars
+}
+
 // setup the flag arguments that the program uses
 func initFlags() {
 
@@ -354,7 +358,8 @@ func initFlags() {
 	flag.BoolVar(&verboseFlag, "verbose", false, `if flase only shows the number of occurrences, if true shows locations too`)
 	flag.StringVar(&methodFLag, "method", "seq", `search in using either the sequential or parrallel method`)
 	flag.BoolVar(&progressFlag, "progress", false, `show the file currently being searched `)
-	flag.BoolVar(&fileMapFlag, "fileMap", true, `show how many occurences each file had`)
+	flag.BoolVar(&fileMapFlag, "fileMap", false, `show how many occurences each file had`)
+	flag.IntVar(&cpuCountFlag, "cpus", -1, "number of CPU's to use")
 
 	flag.Parse()
 }
