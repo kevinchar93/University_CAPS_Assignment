@@ -14,7 +14,7 @@ import (
 
 func check(e error) {
 	if e != nil {
-		//fmt.Print(e.Error())
+		fmt.Print(e.Error())
 		panic(e)
 	}
 }
@@ -25,7 +25,7 @@ type semaphore chan empty
 var typeFlag string
 var searchStrFlag string
 var verboseFlag bool
-var modeFlag string
+var methodFLag string
 var progressFlag bool
 var fileMapFlag bool
 var cpuCount int
@@ -43,22 +43,21 @@ func main() {
 	cpuCount = runtime.NumCPU()
 	runtime.GOMAXPROCS(cpuCount)
 
+	// begin the execution timer
 	startTime := time.Now()
 
 	if len(flag.Args()) == 0 {
 
 		fmt.Print("no arguments given to search\n")
 		return
-
 	} else if typeFlag == "file" {
 
 		searchFiles(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
-
 	} else if typeFlag == "folder" {
 
-		if modeFlag == "para" {
+		if methodFLag == "para" {
 			searchFolders(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
-		} else if modeFlag == "seq" {
+		} else if methodFLag == "seq" {
 			searchFoldersSeq(&verboseOutput, &fileCountMap, &fileCount, &charCount, &fullCount)
 		}
 	} else {
@@ -353,7 +352,7 @@ func initFlags() {
 	flag.StringVar(&typeFlag, "type", "folder", `specify if either file names or folders names will be provided to search`)
 	flag.StringVar(&searchStrFlag, "str", "null", `the string to search for`)
 	flag.BoolVar(&verboseFlag, "verbose", false, `if flase only shows the number of occurrences, if true shows locations too`)
-	flag.StringVar(&modeFlag, "mode", "seq", `search in either sequential of parrallel mode`)
+	flag.StringVar(&methodFLag, "method", "seq", `search in using either the sequential or parrallel method`)
 	flag.BoolVar(&progressFlag, "progress", false, `show the file currently being searched `)
 	flag.BoolVar(&fileMapFlag, "fileMap", true, `show how many occurences each file had`)
 
