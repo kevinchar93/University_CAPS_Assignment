@@ -114,8 +114,8 @@ func worker(targetStr string, fileJob <-chan string, resultsVerboseChan, results
 	originFileName := <-fileJob
 
 	// acquire resource for opening files
-	x := empty{}
-	openedFilesSem <- x
+	sem := empty{}
+	openedFilesSem <- sem
 
 	// open and read from file
 	fileData, err := ioutil.ReadFile(originFileName)
