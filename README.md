@@ -41,3 +41,9 @@ The concurrent / parallel version of the image processing implementation works b
 The algorithm is complete when all the Goroutines have finished executing and the output image is then saved to disk.
 
 See the [Report](https://github.com/kevinchar93/University_CAPS_Assignment/blob/master/CAPS_AssignmentReport_KevinCharles.pdf) for more details and a simple performance analysis.
+
+## License
+
+Copyright © 2016 Kevin Charles
+
+Distributed under the MIT License
